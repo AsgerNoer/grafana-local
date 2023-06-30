@@ -9,33 +9,84 @@ An [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/) is spun u
 - `opentelemetry-collector:4317` (gRPC)
 - `opentelemetry-collector:4318` (http).
 
-A setup of a rudimental traceprovider in Go could look like this.
+### Creating a trace provider
 
 ```go
-func CreateTraceProvider() (trace.TraceProvider, error) {
+func CreateTraceProvider(ctx context.Context) (trace.TraceProvider, error) {
+    var (
+        serviceName    string = "test-service"
+        serviceVersion string = "v1.0.0"
+    )
+
     exporterOpts := []otlptracegrpc.Option{
         otlptracegrpc.WithEndpoint("opentelemetry-collector:4317"),
         otlptracegrpc.WithInsecure(),
     }
 
-    grcpExp, err := otlptracegrpc.New(context.TODO(), exporterOpts...)
+    traceExporter, err := otlptracegrpc.New(ctx, exporterOpts...)
     if err != nil {
-        return nil, fmt.Errorf("creating OpenTelemetry gRPC exporter: %w", err)
+        return nil, err
     }
 
     resources := resource.NewWithAttributes(
         semconv.SchemaURL,
-        semconv.ServiceNameKey.String("test-services"),
-        semconv.ServiceVersionKey.String("v1.0.0"),
+        semconv.ServiceNameKey.String(serviceName),
+        semconv.ServiceVersionKey.String(serviceVersion),
     )
 
-    tp := sdktrace.NewTracerProvider(
+    traceProvider := sdktrace.NewTracerProvider(
         sdktrace.WithSampler(sdktrace.AlwaysSample()),
-        sdktrace.WithBatcher(grcpExp),
+        sdktrace.WithBatcher(traceExporter),
         sdktrace.WithResource(resources),
     )
 
-    return tp, nil
+    propergator := propagation.NewCompositeTextMapPropagator(
+        propagation.TraceContext{},
+        propagation.Baggage{},
+    )
+
+    otel.SetTracerProvider(traceProvider)
+    otel.SetTextMapPropagator(propergator)
+
+    return traceProvider, nil
+}
+```
+
+### Creating a meter provider
+
+```go
+func CreateMeterProvider(ctx context.Context) (metric.MeterProvider, error) {
+    var (
+        serviceName    string = "test-service"
+        serviceVersion string = "v1.0.0"
+    )
+
+    exporterMeter := []otlpmetricgrpc.Option{
+        otlpmetricgrpc.WithEndpoint("opentelemetry-collector:4317"),
+        otlpmetricgrpc.WithInsecure(),
+    }
+
+    metricExporter, err := otlpmetricgrpc.New(ctx, exporterMeter...)
+    if err != nil {
+        return nil, err
+    }
+
+    reader := sdkmetric.NewPeriodicReader(metricExporter)
+
+    resources := resource.NewWithAttributes(
+        semconv.SchemaURL,
+        semconv.ServiceNameKey.String(serviceName),
+        semconv.ServiceVersionKey.String(serviceVersion),
+    )
+
+    meterProvider := sdkmetric.NewMeterProvider(
+        sdkmetric.WithReader(reader),
+        sdkmetric.WithResource(resources),
+    )
+
+    otel.SetMeterProvider(meterProvider)
+
+    return meterProvider, nil
 }
 ```
 
