@@ -12,6 +12,8 @@ exporters:
       insecure: true
   prometheusremotewrite:
     endpoint: http://mimir:9009/api/v1/push
+  otlphttp:
+    endpoint: http://mimir:9009/otlp
 
 extensions:
   health_check:
@@ -26,7 +28,7 @@ service:
       exporters: [otlp]
     metrics:
       receivers: [otlp]
-      exporters: [prometheusremotewrite]
+      exporters: [otlphttp]
     # logs:
     #   receivers: [otlp]
     #   exporters: [otlp]

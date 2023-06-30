@@ -17,10 +17,9 @@ services:
 
   tempo:
     image: grafana/tempo:latest
+    restart: unless-stopped
     networks:
       - grafanet
-    ports:
-      - 3200:3200
     volumes:
       - ./config/tempo:/etc/tempo/
     command: ["-config.file=/etc/tempo/config.yaml"]
